@@ -1,6 +1,6 @@
 # Username & password example with Lucia and Qwik City
 
-This example uses `pg` and Drizzle ORM.
+This example uses `@libsql/client` with Turso and Drizzle ORM.
 
 ```bash
 # install dependencies
