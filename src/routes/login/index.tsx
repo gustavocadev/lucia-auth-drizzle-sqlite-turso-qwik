@@ -9,6 +9,7 @@ import {
   Link,
 } from "@builder.io/qwik-city";
 import { auth } from "~/lib/lucia";
+import { LuciaError } from "lucia";
 
 export const useUserLoader = routeLoader$(async (event) => {
   const authRequest = auth.handleRequest(event);
@@ -23,13 +24,37 @@ export const useUserLoader = routeLoader$(async (event) => {
 export const useLoginAction = routeAction$(
   async (values, event) => {
     const authRequest = auth.handleRequest(event);
-    const key = await auth.useKey("username", values.username, values.password);
 
-    const session = await auth.createSession({
-      userId: key.userId,
-      attributes: {},
-    });
-    authRequest.setSession(session);
+    try {
+      // find user by key
+      // and validate password
+      const key = await auth.useKey(
+        "username",
+        values.username.toLowerCase(),
+        values.password,
+      );
+
+      const session = await auth.createSession({
+        userId: key.userId,
+        attributes: {},
+      });
+      authRequest.setSession(session); // set session cookie
+    } catch (e) {
+      if (
+        e instanceof LuciaError &&
+        (e.message === "AUTH_INVALID_KEY_ID" ||
+          e.message === "AUTH_INVALID_PASSWORD")
+      ) {
+        // user does not exist
+        // or invalid password
+        return event.fail(400, {
+          message: "Incorrect username or password",
+        });
+      }
+      return event.fail(500, {
+        message: "An unknown error occurred",
+      });
+    }
 
     throw event.redirect(303, "/");
   },
@@ -69,6 +94,10 @@ export default component$(() => {
             Signup
           </Link>
         </p>
+
+        {loginAction.value?.message && (
+          <p class="font-bold text-error">{loginAction.value.message}</p>
+        )}
       </Form>
     </>
   );
