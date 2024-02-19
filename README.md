@@ -1,5 +1,7 @@
 # Username & password example with Lucia and Qwik City
 
+>❗⚠️You may also be interested in this project [qwik-lucia](https://github.com/gustavocadev/qwik-lucia), which gonna help you to integrante Lucia in your qwik projects easily, there are many [examples](https://github.com/gustavocadev/qwik-lucia/tree/main/examples) as well!
+
 This example uses `@libsql/client` with Turso and Drizzle ORM.
 
 ```bash
