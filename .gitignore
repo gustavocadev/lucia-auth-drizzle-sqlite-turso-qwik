@@ -7,6 +7,11 @@
 # Env
 .env
 
+pnpm-lock.yaml
+bun.lockb
+yarn.lock
+package-lock.json
+
 # DB
 db.sqlite
 
