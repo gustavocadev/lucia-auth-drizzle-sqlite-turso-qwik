@@ -8,12 +8,15 @@ import {
   Form,
   Link,
 } from "@builder.io/qwik-city";
-import { auth } from "~/lib/lucia";
-import { LuciaError } from "lucia";
+import { eq } from "drizzle-orm";
+import { verifyPassword } from "qwik-lucia";
+import { db } from "~/lib/db";
+import { handleRequest, lucia } from "~/lib/lucia";
+import { userTable } from "~/lib/schema";
 
 export const useUserLoader = routeLoader$(async (event) => {
-  const authRequest = auth.handleRequest(event);
-  const session = await authRequest.validate();
+  const authRequest = handleRequest(event);
+  const { session } = await authRequest.validateUser();
   if (session) {
     throw event.redirect(303, "/");
   }
@@ -23,34 +26,43 @@ export const useUserLoader = routeLoader$(async (event) => {
 
 export const useLoginAction = routeAction$(
   async (values, event) => {
-    const authRequest = auth.handleRequest(event);
+    const authRequest = handleRequest(event);
 
     try {
-      // find user by key
-      // and validate password
-      const key = await auth.useKey(
-        "username",
-        values.username.toLowerCase(),
-        values.password,
-      );
+      // 1. find user
+      const [user] = await db
+        .select({
+          id: userTable.id,
+          username: userTable.username,
+          passwordHash: userTable.passwordHash,
+        })
+        .from(userTable)
+        .where(eq(userTable.username, values.username));
 
-      const session = await auth.createSession({
-        userId: key.userId,
-        attributes: {},
-      });
-      authRequest.setSession(session); // set session cookie
-    } catch (e) {
-      if (
-        e instanceof LuciaError &&
-        (e.message === "AUTH_INVALID_KEY_ID" ||
-          e.message === "AUTH_INVALID_PASSWORD")
-      ) {
-        // user does not exist
-        // or invalid password
+      if (!user) {
         return event.fail(400, {
           message: "Incorrect username or password",
         });
       }
+
+      // 2. validate password
+      const isValidPassword = await verifyPassword(
+        user.passwordHash,
+        values.password,
+      );
+
+      if (!isValidPassword) {
+        return event.fail(400, {
+          message: "Incorrect username or password",
+        });
+      }
+
+      //3. create session
+      const session = await lucia.createSession(user.id, {});
+      authRequest.setSession(session); // set session cookie
+    } catch (e) {
+      console.log(e);
+
       return event.fail(500, {
         message: "An unknown error occurred",
       });

@@ -1,22 +1,32 @@
-import { libsql } from "@lucia-auth/adapter-sqlite";
-import { lucia } from "lucia";
-import { qwik } from "lucia/middleware";
-import { libsqlClient } from "~/lib/db";
+import { DrizzleSQLiteAdapter } from "@lucia-auth/adapter-drizzle";
+import { db } from "./db";
+import { sessionTable, userTable, SelectUser } from "./schema";
+import { Lucia } from "lucia";
+import { qwikLuciaConfig } from "qwik-lucia";
 
-export const auth = lucia({
-  adapter: libsql(libsqlClient, {
-    user: "auth_user",
-    key: "user_key",
-    session: "user_session",
-  }),
-  env: process.env.NODE_ENV === "production" ? "PROD" : "DEV",
-  middleware: qwik(),
-  getUserAttributes: (user) => ({
-    userId: user.id,
-    username: user.username,
-    names: user.names,
-    last_names: user.last_names,
-  }),
+const adapter = new DrizzleSQLiteAdapter(db, sessionTable, userTable);
+
+export const lucia = new Lucia(adapter, {
+  sessionCookie: {
+    attributes: {
+      // set to `true` when using HTTPS
+      secure: process.env.NODE_ENV === "production",
+    },
+  },
+  getUserAttributes: (attributes) => {
+    return {
+      username: attributes.username,
+    };
+  },
 });
 
-export type Auth = typeof auth;
+// IMPORTANT! Here we need to use `qwikLuciaConfig` to correctly configure the `handleRequest` function
+export const { handleRequest } = qwikLuciaConfig(lucia);
+
+// IMPORTANT!
+declare module "lucia" {
+  interface Register {
+    Lucia: typeof lucia;
+    DatabaseUserAttributes: Omit<SelectUser, "id">;
+  }
+}

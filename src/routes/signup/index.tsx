@@ -8,12 +8,15 @@ import {
   routeLoader$,
   Link,
 } from "@builder.io/qwik-city";
-import { auth } from "~/lib/lucia";
 import { LibsqlError } from "@libsql/client";
+import { hashPassword } from "qwik-lucia";
+import { db } from "~/lib/db";
+import { handleRequest, lucia } from "~/lib/lucia";
+import { userTable } from "~/lib/schema";
 
 export const useUserLoader = routeLoader$(async (event) => {
-  const authRequest = auth.handleRequest(event);
-  const session = await authRequest.validate();
+  const authRequest = handleRequest(event);
+  const { session } = await authRequest.validateUser();
   if (session) {
     throw event.redirect(303, "/");
   }
@@ -23,22 +26,21 @@ export const useUserLoader = routeLoader$(async (event) => {
 
 export const useSignupUser = routeAction$(
   async (values, event) => {
+    const authRequest = handleRequest(event);
     try {
-      const authRequest = auth.handleRequest(event);
-      const user = await auth.createUser({
-        key: {
-          providerId: "username", // auth method
-          providerUserId: values.username.toLowerCase(), // unique id when using "username" auth method
-          password: values.password, // hashed by Lucia
-        },
-        attributes: {
+      const passwordHash = await hashPassword(values.password);
+      const [user] = await db
+        .insert(userTable)
+        .values({
+          passwordHash,
           username: values.username,
-        },
-      });
-      const session = await auth.createSession({
-        userId: user.userId,
-        attributes: {},
-      });
+        })
+        .returning({
+          id: userTable.id,
+        });
+
+      // create a session
+      const session = await lucia.createSession(user.id, {});
       authRequest.setSession(session); // set session cookie
     } catch (e) {
       // check for unique constraint error in user table

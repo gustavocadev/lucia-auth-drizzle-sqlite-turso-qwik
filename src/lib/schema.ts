@@ -1,17 +1,17 @@
 import { text, integer, sqliteTable } from "drizzle-orm/sqlite-core";
+import { generateId } from "lucia";
 
-export const user = sqliteTable("auth_user", {
-  id: text("id", {
-    length: 15, // change this when using custom user ids
-  }).primaryKey(),
+export const userTable = sqliteTable("user", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => generateId(15)),
+  passwordHash: text("passwordHash").notNull(),
+  username: text("username").notNull(),
   // other user attributes
-  username: text("username", {
-    length: 55,
-  }),
-  names: text("names", {
+  name: text("name", {
     length: 255,
   }),
-  lastNames: text("last_names", {
+  lastName: text("last_name", {
     length: 255,
   }),
   email: text("email", {
@@ -19,33 +19,14 @@ export const user = sqliteTable("auth_user", {
   }),
 });
 
-export const key = sqliteTable("user_key", {
-  id: text("id", {
-    length: 255,
-  }).primaryKey(),
-  userId: text("user_id", {
-    length: 15,
-  })
+export type SelectUser = typeof userTable.$inferSelect;
+
+export const sessionTable = sqliteTable("session", {
+  id: text("id").notNull().primaryKey(),
+  userId: text("user_id")
     .notNull()
-    .references(() => user.id),
-  hashedPassword: text("hashed_password", {
-    length: 255,
-  }),
+    .references(() => userTable.id),
+  expiresAt: integer("expires_at").notNull(),
 });
 
-export const session = sqliteTable("user_session", {
-  id: text("id", {
-    length: 128,
-  }).primaryKey(),
-  userId: text("user_id", {
-    length: 15,
-  })
-    .notNull()
-    .references(() => user.id),
-  activeExpires: integer("active_expires", {
-    mode: "number",
-  }).notNull(),
-  idleExpires: integer("idle_expires", {
-    mode: "number",
-  }).notNull(),
-});
+export type SelectSession = typeof sessionTable.$inferSelect;
